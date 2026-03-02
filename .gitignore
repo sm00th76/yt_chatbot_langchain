@@ -1,3 +1,2 @@
 .env
-.gitignore
 ./chromadb_langchain
