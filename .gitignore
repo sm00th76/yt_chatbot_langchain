@@ -1,3 +1,5 @@
 .env
-.gitignore
-./chromadb_langchain
+
+chromadb_langchain/
+
+__pycache__/
