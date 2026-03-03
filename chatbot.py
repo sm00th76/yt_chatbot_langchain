@@ -4,7 +4,8 @@ from langchain_core.runnables import RunnableParallel, RunnableLambda, RunnableP
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate,MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,9 +18,13 @@ model_embedding = 'gemini-embedding-001'
 
 embedder = GoogleGenerativeAIEmbeddings(model=model_embedding)
 
+chat_history = []
+
 prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "you are a helpful AI assistant, given an answer within the context of the given information ONLY. If you are unable to answer the question within the constraints of the context just say you dont know"),
+        ("system", """you are a helpful AI assistant, given an answer within the context and chat history of the given information ONLY.
+        If you are unable to answer the question within the constraints of the context or chat history just say you dont know"""),
+        MessagesPlaceholder(variable_name= "chat_history"),
         ("human", "question: {question}\ncontext: {context}")
     ]
 )
@@ -66,7 +71,6 @@ def format_docs(docs):
         op += '\n\n' + i.page_content
     return op
 
-
 def ask_question(url: str, question: str) -> str:
     
     video_id = extract_video_id(url)
@@ -77,9 +81,15 @@ def ask_question(url: str, question: str) -> str:
 
     parallel_chain = RunnableParallel({
         'question': RunnablePassthrough(),
+        'chat_history': RunnableLambda(lambda _: chat_history),
         'context': retriever | RunnableLambda(format_docs)
     })
 
     main_chain = parallel_chain | prompt | model | parser
 
-    return main_chain.invoke(question)
+    response = main_chain.invoke(question)
+
+    chat_history.append(HumanMessage(content=question))
+    chat_history.append(AIMessage(content=response))
+
+    return response
